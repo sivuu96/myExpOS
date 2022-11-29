@@ -1,0 +1,60 @@
+alias functionNum R1;
+alias currentPID R2;
+
+if (functionNum==3) then
+
+      // ACQUIRE TERMINAL
+      multipush(R1,R2,R3);
+      
+      R1=8;
+      R2=currentPID;
+      
+      call MOD_0;
+      
+      multipop(R1,R2,R3);
+      
+      print R3; 
+      
+      // RELEASE TERMINAL 
+      multipush(R1,R2,R3);
+      
+      R1=9;
+      R2=currentPID;
+      
+      call MOD_0;
+      
+      multipop(R1,R2,R3);
+
+
+
+else if (functionNum==4) then
+      
+      // ACQUIRE TERMINAL
+      multipush(R1,R2,R3);
+      
+      R1=8;
+      R2=currentPID;
+      
+      call MOD_0;
+      
+      multipop(R1,R2,R3);
+      
+      read;
+      [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]* 16) + 4]= WAIT_TERMINAL;
+      
+      //CONTEXT SWITCH
+      
+      multipush(R1,R2,R3);
+      
+      call MOD_5;
+      
+      multipop(R1,R2,R3);
+      
+      alias buffer R3;
+      buffer =  ([PTBR + 2 * (buffer/512)] * 512) + (buffer % 512);
+       
+      [buffer] = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]* 16) + 8];
+endif;      
+endif;   
+
+return;

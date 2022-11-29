@@ -1,0 +1,37 @@
+decl
+    int arr[20];
+enddecl
+
+int main(){
+    decl
+        int temp,x,n,i,j;
+    enddecl
+    begin
+        x=exposcall("Read",-1,n);
+        i=0;
+        while(i<n) do
+            x=exposcall("Read",-1,arr[i]);
+            i=i+1;
+        endwhile;
+        i=0;
+        while(i<n) do
+            j=0;
+            while(j<(n-1-i)) do
+                if(arr[j]>arr[j+1]) then
+                    temp=arr[j];
+                    arr[j]=arr[j+1];
+                    arr[j+1]=temp;
+                endif;
+                j=j+1;
+            endwhile;
+            i=i+1;
+        endwhile;
+        i=0;
+        while(i<n) do
+            x=exposcall("Write",-2,arr[i]);
+            i=i+1;
+        endwhile;
+
+        return 0;
+    end
+}

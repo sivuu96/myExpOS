@@ -1,0 +1,90 @@
+alias functionNum R1;
+alias currentPID R2;
+
+if (functionNum==3) then
+
+      // ACQUIRE TERMINAL
+      multipush(R1,R2,R3);
+      
+      R1=8;
+      R2=currentPID;
+      
+      call MOD_0;
+      
+      multipop(R1,R2,R3);
+      
+      print R3; 
+      
+      // RELEASE TERMINAL 
+      multipush(R1,R2,R3);
+      
+      R1=9;
+      R2=currentPID;
+      
+      call MOD_0;
+      
+      multipop(R1,R2,R3);
+
+
+
+else if (functionNum==4) then
+      
+      // ACQUIRE TERMINAL
+      multipush(R1,R2,R3);
+      
+      R1=8;
+      R2=currentPID;
+      
+      call MOD_0;
+      
+      multipop(R1,R2,R3);
+      
+      read;
+      [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]* 16) + 4]= WAIT_TERMINAL;
+      
+      //CONTEXT SWITCH
+      
+      multipush(R1,R2,R3);
+      
+      call MOD_5;
+      
+      multipop(R1,R2,R3);
+      
+      alias buffer R3;
+      buffer =  ([PTBR + 2 * (buffer/512)] * 512) + (buffer % 512);
+       
+      [buffer] = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]* 16) + 8];
+    return;
+else if (functionNum==2) then
+
+    //disk load
+    alias pageNum R3;
+    alias blockNum R4;
+    multipush(R1,R2,R3,R4);
+    functionNum=3;
+    call MOD_0;
+    multipop(R1,R2,R3,R4);
+    // set operation type to be load
+	[DISK_STATUS_TABLE + 1] = 0;
+
+	// set page number
+	[DISK_STATUS_TABLE + 2] = pageNum;
+
+	// set block number
+	[DISK_STATUS_TABLE + 3] = blockNum;
+
+	// use the load statement to load the disk block to memory
+	load(pageNum, blockNum);
+
+	[(PROCESS_TABLE + 16*currentPID) + 4] = WAIT_DISK;
+
+	// invoke the scheduler
+	call MOD_5;
+    //print "meh";
+
+
+endif;
+endif;      
+endif;   
+
+return;

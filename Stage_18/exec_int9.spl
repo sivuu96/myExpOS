@@ -1,0 +1,192 @@
+// Saving user stack and changing to kernel stack.
+alias userSP R0;
+userSP = SP;
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13] = userSP;
+SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11] * 512 - 1;
+
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 9;
+
+//Get the argument (name of the file) from user stack
+alias file_name R1;
+file_name = [[PTBR + 2 * ((userSP - 4)/512)]*512 + (userSP - 4) % 512];
+
+alias i R2;
+alias temp_file_name R3;
+alias inode_index R4;
+i = 0;
+while(i < MAX_FILE_NUM) do
+	temp_file_name = [(INODE_TABLE + 16*i) + 1];
+	if(temp_file_name == file_name) then
+		inode_index = i;
+		break;
+	endif;
+	i = i+1;
+endwhile;
+
+// If the file is not present or file is not in XEXE 
+// format return to user mode with return value -1 indicating failure
+if (i == MAX_FILE_NUM) then
+    alias physicalAddrRetVal R5;
+    physicalAddrRetVal = ([PTBR + 2 * ((userSP - 1) / 512)] * 512) + ((userSP - 1) % 512);
+    [physicalAddrRetVal] = -1;
+else
+    alias functionNum R1;
+    alias pid R2;
+    pid = [SYSTEM_STATUS_TABLE + 1]; 
+    // Call the Exit Process function in process manager module to
+    // deallocate the resources and pages of the current process.
+    multipush(R0, R1, R2, R3, R4, R5);
+    R0 = 0;
+    functionNum = 3;
+    R2 = pid;
+    R3 = 0;
+    call MOD_1;
+    multipop(R0, R1, R2, R3, R4, R5);
+
+    // Reclaim the same page by incrementing the memory free list entry of user area page and decrementing the MEM_FREE_COUNT field
+    [MEMORY_FREE_LIST + [PROCESS_TABLE + 16 * pid + 11]] = 1;
+    [SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] - 1;
+
+    SP = [PROCESS_TABLE + pid * 16 + 11] * 512 - 1;
+
+    [PROCESS_TABLE + pid * 16 + 4] = RUNNING;
+    [PROCESS_TABLE + pid * 16 + 7] = inode_index;
+
+    PTBR = [PROCESS_TABLE + pid * 16 + 14];
+    PTLR = 10;
+
+    [PTBR+0] = 63;
+    [PTBR+1] = "0100";
+    [PTBR+2] = 64;
+    [PTBR+3] = "0100";
+
+    // Invoke the Get Free Page function to allocate 2 stack and 2 heap pages.
+    multipush(R0, R1, R2, R3, R4, R5);
+    functionNum = 1;
+    call MOD_2;
+    //Heap
+    [PTBR+4] = R0;
+    [PTBR+5] = "0110";
+
+    functionNum = 1;
+    call MOD_2;
+    [PTBR+6] = R0;
+    [PTBR+7] = "0110";
+
+    //Stack
+    functionNum = 1;
+    call MOD_2;
+    [PTBR+16] = R0;
+    [PTBR+17] = "0110";
+    functionNum = 1;
+    call MOD_2;
+    [PTBR+18] = R0;
+    [PTBR+19] = "0110";
+
+    //multipop(R0, R1, R2, R3, R4, R5);
+
+
+    inode_index = [(PROCESS_TABLE + 16*[SYSTEM_STATUS_TABLE + 1]) + 7];
+    if([(INODE_TABLE + 16*inode_index) + 8] != -1) then
+		//multipush(R0, R1, R2, R3, R4, R5, R6);
+	    functionNum = 1;
+
+	    // Call the Exit Process function in process manager module
+	    call MOD_2;
+	    [PTBR + 8] = R0;
+	    [PTBR + 9] = "0100";
+
+
+        functionNum = 2;
+        R2 = [SYSTEM_STATUS_TABLE + 1];
+        R3 = [PTBR+8];
+        inode_index = [(PROCESS_TABLE + 16*R2) + 7];
+        R4 = [(INODE_TABLE + 16*inode_index) + 8];
+        call MOD_4;
+
+
+		//multipop(R0, R1, R2, R3, R4, R5, R6);
+		//loadi([PTBR + 8] , [(INODE_TABLE + 16*inode_index) + 8]);
+	endif;
+
+    inode_index = [(PROCESS_TABLE + 16*[SYSTEM_STATUS_TABLE + 1]) + 7];
+	if([(INODE_TABLE + 16*inode_index) + 9] != -1) then
+		//multipush(R0, R1, R2, R3, R4, R5, R6);
+	    functionNum = 1;
+
+	    // Call the Exit Process function in process manager module
+	    call MOD_2;
+	    [PTBR + 10] = R0;
+	    [PTBR + 11] = "0100";
+
+        functionNum = 2;
+        R2 = [SYSTEM_STATUS_TABLE + 1];
+        R3 = [PTBR+10];
+        inode_index = [(PROCESS_TABLE + 16*R2) + 7];
+        R4 = [(INODE_TABLE + 16*inode_index) + 9];
+        call MOD_4;
+
+		//multipop(R0, R1, R2, R3, R4, R5, R6);
+		//loadi([PTBR + 10], [(INODE_TABLE + 16*inode_index) + 9]);	
+	endif;
+
+    inode_index = [(PROCESS_TABLE + 16*[SYSTEM_STATUS_TABLE + 1]) + 7];
+	if([(INODE_TABLE + 16*inode_index) + 10] != -1) then
+		//multipush(R0, R1, R2, R3, R4, R5, R6);
+	    functionNum = 1;
+
+	    // Call the Exit Process function in process manager module
+	    call MOD_2;
+	    [PTBR + 12] = R0;
+	    [PTBR + 13] = "0100";
+
+        functionNum = 2;
+        R2 = [SYSTEM_STATUS_TABLE + 1];
+        R3 = [PTBR+12];
+        inode_index = [(PROCESS_TABLE + 16*R2) + 7];
+        R4 = [(INODE_TABLE + 16*inode_index) + 10];
+        call MOD_4;
+
+		//multipop(R0, R1, R2, R3, R4, R5, R6);
+		//loadi([PTBR + 12], [(INODE_TABLE + 16*inode_index) + 10]);
+	endif;
+
+    inode_index = [(PROCESS_TABLE + 16*[SYSTEM_STATUS_TABLE + 1]) + 7];
+	if([(INODE_TABLE + 16*inode_index) + 11] != -1) then
+		//multipush(R0, R1, R2, R3, R4, R5, R6);
+	    functionNum = 1;
+
+	    // Call the Exit Process function in process manager module
+	    call MOD_2;
+	    [PTBR + 14] = R0;
+	    [PTBR + 15] = "0100";
+
+        functionNum = 2;
+        R2 = [SYSTEM_STATUS_TABLE + 1];
+        R3 = [PTBR+14];
+        inode_index = [(PROCESS_TABLE + 16*R2) + 7];
+        R4 = [(INODE_TABLE + 16*inode_index) + 11];
+        call MOD_4;
+
+		multipop(R0, R1, R2, R3, R4, R5);
+		//loadi([PTBR + 14], [(INODE_TABLE + 16*inode_index) + 11]);
+	endif;
+
+    alias j R7;
+	i = [PROCESS_TABLE + 16 * pid + 11] * 512 + (512 - 16);
+	j = 0;
+	while(j < 16) do
+		[i] = -1;
+		j = j + 1;
+		i = i + 1;
+	endwhile;
+
+	[(PROCESS_TABLE + 16*[SYSTEM_STATUS_TABLE + 1]) + 13] = 8*512;
+	[[PTBR + 16]*512] = [[PTBR + 8]*512 + 1];
+
+endif;
+
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+
+ireturn;

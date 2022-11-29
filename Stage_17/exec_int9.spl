@@ -1,0 +1,157 @@
+// Saving user stack and changing to kernel stack.
+alias userSP R0;
+userSP = SP;
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13] = userSP;
+SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11] * 512 - 1;
+
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 9;
+
+// getting the file name from user stack which is the 1st and only argument.
+alias fileDescriptor R1;
+fileDescriptor = [([PTBR + 2 * ((userSP - 4) / 512)] * 512) + ((userSP - 4) % 512)];
+
+alias i R2;
+i = 0;
+alias inode_index R3;
+inode_index = -1;
+
+// Search the memory copy of the inode table for the file,
+while(i < MAX_FILE_NUM) do
+    alias state R4;
+    state = INODE_TABLE + 16 * i;
+    if([state + 1] == fileDescriptor) then
+        if([state + 0] == EXEC) then
+            inode_index = i;
+        endif;
+        break;
+    endif;
+    i = i + 1;
+endwhile;
+
+// If the file is not present or file is not in XEXE 
+// format return to user mode with return value -1 indicating failure
+if (inode_index == -1) then
+    alias physicalAddrRetVal R5;
+    physicalAddrRetVal = ([PTBR + 2 * ((userSP - 1) / 512)] * 512) + ((userSP - 1) % 512);
+    [physicalAddrRetVal] = -1;
+else
+    alias pid R2;
+    pid = [SYSTEM_STATUS_TABLE + 1]; 
+    // Call the Exit Process function in process manager module to
+    // deallocate the resources and pages of the current process.
+    multipush(R0, R1, R2, R3, R4, R5);
+    R0 = 0;
+    R1 = 3;
+    R2 = pid;
+    R3 = 0;
+    call MOD_1;
+    multipop(R0, R1, R2, R3, R4, R5);
+
+    // Reclaim the same page by incrementing the memory free list entry of user area page and decrementing the MEM_FREE_COUNT field
+    [MEMORY_FREE_LIST + [PROCESS_TABLE + 16 * pid + 11]] = 1;
+    [SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] - 1;
+
+    SP = [PROCESS_TABLE + pid * 16 + 11] * 512 - 1;
+
+    [PROCESS_TABLE + pid * 16 + 4] = RUNNING;
+    [PROCESS_TABLE + pid * 16 + 7] = inode_index;
+
+    PTBR = [PROCESS_TABLE + pid * 16 + 14];
+    PTLR = 10;
+
+    [PTBR+0] = 63;
+    [PTBR+1] = "0100";
+    [PTBR+2] = 64;
+    [PTBR+3] = "0100";
+
+    // Invoke the Get Free Page function to allocate 2 stack and 2 heap pages.
+    multipush(R0, R1, R2, R3, R4, R5);
+    R1 = 1;
+    call MOD_2;
+    //Heap
+    [PTBR+4] = R0;
+    [PTBR+5] = "0110";
+
+    R1 = 1;
+    call MOD_2;
+    [PTBR+6] = R0;
+    [PTBR+7] = "0110";
+
+    //Stack
+    R1 = 1;
+    call MOD_2;
+    [PTBR+16] = R0;
+    [PTBR+17] = "0110";
+    R1 = 1;
+    call MOD_2;
+    [PTBR+18] = R0;
+    [PTBR+19] = "0110";
+
+    multipop(R0, R1, R2, R3, R4, R5);
+
+    alias codeSize R6;
+
+    // Find out the number of blocks occupied by the file from inode table.
+    codeSize = ([INODE_TABLE + 16 * inode_index + 2] + 511) / 512;
+
+    if([(INODE_TABLE + 16*inode_index) + 8] != -1) then
+		multipush(R0, R1, R2, R3, R4, R5, R6);
+	    R1 = 1;
+
+	    // Call the Exit Process function in process manager module
+	    call MOD_2;
+	    [PTBR + 8] = R0;
+	    [PTBR + 9] = "0100";
+
+		multipop(R0, R1, R2, R3, R4, R5, R6);
+		loadi([PTBR + 8] , [(INODE_TABLE + 16*inode_index) + 8]);
+	endif;
+
+	if([(INODE_TABLE + 16*inode_index) + 9] != -1) then
+		multipush(R0, R1, R2, R3, R4, R5, R6);
+	    R1 = 1;
+
+	    // Call the Exit Process function in process manager module
+	    call MOD_2;
+	    [PTBR + 10] = R0;
+	    [PTBR + 11] = "0100";
+
+		multipop(R0, R1, R2, R3, R4, R5, R6);
+		loadi([PTBR + 10], [(INODE_TABLE + 16*inode_index) + 9]);	
+	endif;
+
+	if([(INODE_TABLE + 16*inode_index) + 10] != -1) then
+		multipush(R0, R1, R2, R3, R4, R5, R6);
+	    R1 = 1;
+
+	    // Call the Exit Process function in process manager module
+	    call MOD_2;
+	    [PTBR + 12] = R0;
+	    [PTBR + 13] = "0100";
+
+		multipop(R0, R1, R2, R3, R4, R5, R6);
+		loadi([PTBR + 12], [(INODE_TABLE + 16*inode_index) + 10]);
+	endif;
+
+	if([(INODE_TABLE + 16*inode_index) + 11] != -1) then
+		multipush(R0, R1, R2, R3, R4, R5, R6);
+	    R1 = 1;
+
+	    // Call the Exit Process function in process manager module
+	    call MOD_2;
+	    [PTBR + 14] = R0;
+	    [PTBR + 15] = "0100";
+
+		multipop(R0, R1, R2, R3, R4, R5, R6);
+		loadi([PTBR + 14], [(INODE_TABLE + 16*inode_index) + 11]);
+	endif;
+
+	[(PROCESS_TABLE + 16*[SYSTEM_STATUS_TABLE + 1]) + 13] = 8*512;
+	[[PTBR + 16]*512] = [[PTBR + 8]*512 + 1];
+
+endif;
+
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+
+ireturn;

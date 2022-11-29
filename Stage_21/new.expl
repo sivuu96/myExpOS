@@ -1,0 +1,21 @@
+int main()
+{
+decl
+    int temp, i, pid, a;
+enddecl
+begin
+    i = 10;
+    pid = exposcall ("Fork");
+    if(pid == 0)then
+        i=i+5;
+        write(i);
+    else
+        i=i+10;
+        write(i);
+        temp = exposcall("Wait",pid);
+        i=i+7;
+        write(i);
+    endif;
+    return 0;
+end 
+}

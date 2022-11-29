@@ -1,0 +1,19 @@
+readi R1;
+alias n R1;
+alias i R0;
+alias itr R5;
+itr=1;
+i=1;
+alias sum R15;
+while(i<=n)do
+	readi R4;
+	alias numb R4;
+	while(itr<=numb)do
+		sum=sum+itr;
+		itr=itr+1;
+	endwhile;
+	print sum;
+	sum=0;
+	itr=1;
+	i=i+1;
+endwhile;

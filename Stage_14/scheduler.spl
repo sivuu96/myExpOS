@@ -1,0 +1,67 @@
+alias curPid R0;
+curPid = [SYSTEM_STATUS_TABLE+1];
+
+SP = SP + 1;
+[SP] = BP;
+
+alias process_table_entry R1;
+process_table_entry = PROCESS_TABLE + curPid * 16;
+
+[process_table_entry + 12] = SP % 512;
+[process_table_entry + 14] = PTBR;
+[process_table_entry + 15] = PTLR;
+
+alias newPID R4;
+
+alias i R2;
+if( curPid == MAX_PROC_NUM - 1) then
+    i = 1;
+else
+    i = curPid + 1;
+endif ;
+
+while(curPid != i) do
+    alias state R3;
+    state = [PROCESS_TABLE + 16 * i + 4];
+    if(state == CREATED || state == READY) then
+        break;
+    endif;
+    if(i + 1 == MAX_PROC_NUM) then
+        i = 1;
+    else 
+        i = i + 1;
+    endif;
+endwhile;
+
+//if no process found then switch to idle process
+if(i == curPid) then
+    newPID = 0;
+else 
+    newPID = i;
+endif;
+
+alias newProcessTable R5;
+newProcessTable = PROCESS_TABLE + newPID * 16 ;
+
+alias uPageNew R6;
+uPageNew = [newProcessTable + 11];
+alias kStackNew R7;
+kStackNew = [newProcessTable + 12];
+
+
+PTBR = [newProcessTable + 14];
+PTLR = [newProcessTable + 15];
+[SYSTEM_STATUS_TABLE + 1] = newPID;
+
+if( [newProcessTable + 4] == CREATED ) then
+    SP = [newProcessTable + 13];
+    [newProcessTable + 4] = RUNNING;
+    [newProcessTable + 9] = 0;
+    ireturn;
+else
+    SP = uPageNew*512 + kStackNew;
+    [newProcessTable + 4] = RUNNING;
+    BP = [SP];
+    SP = SP - 1;
+    return;
+endif ;

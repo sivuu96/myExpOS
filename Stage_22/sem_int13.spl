@@ -1,0 +1,124 @@
+alias userSP R5;
+alias systemNum R1;
+
+//userSP-5 is the position that stores the system call number
+userSP = SP;
+systemNum = [([PTBR + 2 * ((userSP - 5) / 512) ] * 512 )  + ((userSP - 5) % 512)];
+
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1]*16 + 13] = SP;
+SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1]*16 + 11]*512 - 1;
+
+//semget
+if (systemNum == 17) then
+    //change the mode flag of the process
+    [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 17;
+
+
+    alias free_entry R2;
+    alias per_process R3;
+    alias counter R4;
+    per_process = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1 ] * 16 + 11] * 512 + 512 - 16;
+    counter = 0;
+    free_entry = -1;
+    while (counter < 8) do
+        if ( [per_process] == -1 ) then
+            free_entry = counter;
+            break;
+        endif;
+        per_process = per_process + 2;         //per process is the address not the value itself
+        counter = counter + 1;
+    endwhile;
+
+    //if the free entry is not found
+    if (free_entry == -1) then
+        [([PTBR + 2 * ((userSP - 1) / 512) ] * 512 )  + ((userSP - 1) % 512)] = -1;
+        [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 9] = 0;
+        SP = userSP;
+        ireturn;
+    endif;
+
+    [per_process] = SEMAPHORE;          //to indicate that the resource is semaphore
+    // print [per_process];
+
+    multipush (R5, R1 , R2 , R3 , R4);
+    R1 = 6;                  //acquire semaphore function number
+    R2 = [SYSTEM_STATUS_TABLE + 1];
+    call RESOURCE_MANAGER;
+    multipop (R5 , R1 , R2 , R3 , R4);
+    
+    //if the return value is -1 then return -2
+    if (R0 == -1) then 
+        [([PTBR + 2 * ((userSP - 1) / 512) ] * 512 )  + ((userSP - 1) % 512)] = -2;
+        [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 9] = 0;
+        SP = userSP;
+        ireturn;
+    endif;
+
+    [per_process + 1] = R0;
+
+    SP = userSP;
+    [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1 ] * 16 + 9] = 0;
+    [([PTBR + 2 * ((userSP - 1) / 512) ] * 512 )  + ((userSP - 1) % 512)] = R0;
+    print "semget"; 
+    ireturn;
+endif;
+
+//semaphore release
+if (systemNum == 18) then 
+    //print ("semrelease");
+    [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 18;
+
+
+    alias semID R2;
+    semID = [([PTBR + 2 * ((userSP - 4) / 512) ] * 512 )  + ((userSP - 4) % 512)];
+
+    alias per_process R3;
+    per_process = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1 ] * 16 + 11] * 512 + 512 - 16;
+
+
+    alias counter R4;
+    counter = 0;
+    while (counter < 8) do
+        if ([per_process + counter * 2 + 1 ] == semID && [per_process + counter * 2] == 1) then
+            break;
+        endif;
+        counter = counter + 1;
+    endwhile;
+
+
+    //checking if the semid is 0 or not
+    if (semID < 0 || semID > 7 || [SEMAPHORE_TABLE + semID * 4 + 1 ] == 0 || counter >= 8) then  //last one is for process count
+        [([PTBR + 2 * ((userSP - 1) / 512) ] * 512 )  + ((userSP - 1) % 512)] = -1;
+        [PROCESS_TABLE + 16 * [SYSTEM_STATUS_TABLE + 1] + 9] = 0;
+        SP = userSP;
+        ireturn;
+    endif;
+
+    multipush (R1 , R3 , R4, R5);
+    R1 = 7;             //function number
+    R2 = semID;
+    R3 = [SYSTEM_STATUS_TABLE + 1];
+    call RESOURCE_MANAGER;
+    multipop (R1 , R3 , R4 , R5);
+    
+    //invalidate the per process entry
+
+    counter = 0;
+
+    while (counter < 8) do
+        if ([per_process + 2 * counter + 1] == semID) then 
+            [per_process + 2 * counter + 1] = -1;
+            break;
+        endif;
+        counter = counter + 1;
+    endwhile;
+
+    //print ("release the sema"); 
+
+    SP = userSP;
+    [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1 ] * 16 + 9] = 0;
+    [([PTBR + 2 * ((userSP - 1) / 512) ] * 512 )  + ((userSP - 1) % 512)] = 0;
+    ireturn;
+endif;
+
+
